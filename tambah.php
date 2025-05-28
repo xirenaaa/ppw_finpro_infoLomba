@@ -1,63 +1,136 @@
 <?php
 require_once 'config.php';
-$page_title = 'Tambah Lomba Baru';
+$page_title = 'Tambah Lomba';
 
 $errors = [];
+$namaLomba = '';
+$deskripsi = '';
+$tanggalLomba = '';
+$lokasi = '';
+$linkPendaftaran = '';
+$penyelenggaraLomba = '';
+$status = 'available';
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit'])) {
+// Ambil data untuk dropdown
+$bidang_lomba = mysqli_query($conn, "SELECT * FROM bidang_lomba ORDER BY nama_bidang ASC");
+$kategori = mysqli_query($conn, "SELECT * FROM kategori ORDER BY nama_kategori ASC");
+$hadiah = mysqli_query($conn, "SELECT * FROM hadiah ORDER BY nama_hadiah ASC");
+
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit'])) {
+    // Ambil data dari form
     $namaLomba = trim($_POST['nama_lomba']);
+    $idBidang = trim($_POST['id_bidang']);
+    $idKategori = trim($_POST['id_kategori']);
+    $idHadiah = trim($_POST['id_hadiah']);
+    $penyelenggaraLomba = trim($_POST['penyelenggara']);
     $deskripsi = trim($_POST['deskripsi']);
-    $tanggalLomba = trim($_POST['tgl_lomba']);
-    $lokasi = trim($_POST['lokasi']);
-    $linkPendaftaran = trim($_POST['link_daftar']);
-    $gambar = trim($_POST['gambar']);
-    $penyelenggaraLomba = trim($_POST['penyelenggara_lomba']);
+    $status = trim($_POST['status']);
     
-    // Validasi form
+    // Data jadwal
+    $tanggalMulai = trim($_POST['tanggal_mulai']);
+    $tanggalSelesai = trim($_POST['tanggal_selesai']);
+    
+    // Data syarat
+    $syaratUmum = trim($_POST['syarat_umum']);
+    $syaratKhusus = trim($_POST['syarat_khusus']);
+
+    // Validasi data
     if (empty($namaLomba)) {
-        $errors[] = 'Nama lomba tidak boleh kosong';
+        $errors[] = 'Nama lomba harus diisi';
     }
-    
-    if (empty($deskripsi)) {
-        $errors[] = 'Deskripsi tidak boleh kosong';
+    if (empty($idBidang)) {
+        $errors[] = 'Bidang lomba harus dipilih';
     }
-    
-    if (empty($tanggalLomba)) {
-        $errors[] = 'Tanggal lomba tidak boleh kosong';
+    if (empty($idKategori)) {
+        $errors[] = 'Kategori harus dipilih';
     }
-    
-    if (empty($lokasi)) {
-        $errors[] = 'Lokasi tidak boleh kosong';
-    }
-    
-    if (empty($linkPendaftaran)) {
-        $errors[] = 'Link pendaftaran tidak boleh kosong';
-    }
-    
-    if (empty($gambar)) {
-        $errors[] = 'URL gambar tidak boleh kosong';
-    }
-    
     if (empty($penyelenggaraLomba)) {
-        $errors[] = 'Penyelenggara lomba tidak boleh kosong';
+        $errors[] = 'Penyelenggara harus diisi';
     }
-    
-    // Validasi tanggal tidak boleh masa lalu
-    if (!empty($tanggalLomba) && strtotime($tanggalLomba) < strtotime(date('Y-m-d'))) {
-        $errors[] = 'Tanggal lomba tidak boleh di masa lalu';
+    if (empty($tanggalMulai)) {
+        $errors[] = 'Tanggal mulai harus diisi';
     }
-    
-    // Jika tidak ada error, simpan data
-    if (empty($errors)) {
-        $sql = "INSERT INTO lomba (nama_lomba, deskripsi, tgl_lomba, lokasi, link_daftar, gambar, penyelenggara_lomba) VALUES (?, ?, ?, ?, ?, ?, ?)";
-        $stmt = mysqli_prepare($conn, $sql);
-        mysqli_stmt_bind_param($stmt, "sssssss", $namaLomba, $deskripsi, $tanggalLomba, $lokasi, $linkPendaftaran, $gambar, $penyelenggaraLomba);
+    if (!empty($tanggalSelesai) && $tanggalSelesai < $tanggalMulai) {
+        $errors[] = 'Tanggal selesai tidak boleh lebih awal dari tanggal mulai';
+    }
+
+    // Validasi dan proses gambar
+    $gambar = '';
+    if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
+        $allowed = ['jpg', 'jpeg', 'png', 'gif'];
+        $filename = $_FILES['gambar']['name'];
+        $filetype = pathinfo($filename, PATHINFO_EXTENSION);
         
-        if (mysqli_stmt_execute($stmt)) {
+        // Verifikasi ekstensi file
+        if (!in_array(strtolower($filetype), $allowed)) {
+            $errors[] = 'Format gambar tidak valid. Format yang diizinkan: ' . implode(', ', $allowed);
+        }
+        
+        // Verifikasi ukuran file (max 2MB)
+        if ($_FILES['gambar']['size'] > 2097152) {
+            $errors[] = 'Ukuran gambar terlalu besar (maksimal 2MB)';
+        }
+        
+        // Jika tidak ada error, upload gambar
+        if (empty($errors)) {
+            $upload_dir = 'uploads/';
+            
+            // Buat direktori jika belum ada
+            if (!file_exists($upload_dir)) {
+                mkdir($upload_dir, 0777, true);
+            }
+            
+            // Generate nama file unik
+            $new_filename = uniqid() . '.' . $filetype;
+            $upload_path = $upload_dir . $new_filename;
+            
+            if (move_uploaded_file($_FILES['gambar']['tmp_name'], $upload_path)) {
+                $gambar = $upload_path;
+            } else {
+                $errors[] = 'Gagal mengupload gambar';
+            }
+        }
+    } else {
+        // Jika tidak ada gambar, gunakan placeholder
+        $gambar = 'https://via.placeholder.com/800x400?text=Lomba+' . urlencode($namaLomba);
+    }
+
+    // Jika tidak ada error, simpan data ke database
+    if (empty($errors)) {
+        mysqli_begin_transaction($conn);
+        
+        try {
+            // Insert ke tabel lomba
+            $sql_lomba = "INSERT INTO lomba (nama_lomba, id_bidang, id_kategori, id_hadiah, penyelenggara, deskripsi, gambar, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            $stmt_lomba = mysqli_prepare($conn, $sql_lomba);
+            mysqli_stmt_bind_param($stmt_lomba, "siiissss", $namaLomba, $idBidang, $idKategori, $idHadiah, $penyelenggaraLomba, $deskripsi, $gambar, $status);
+            mysqli_stmt_execute($stmt_lomba);
+            
+            $idLomba = mysqli_insert_id($conn);
+            
+            // Insert ke tabel jadwal_lomba
+            if (!empty($tanggalMulai)) {
+                $sql_jadwal = "INSERT INTO jadwal_lomba (id_lomba, tanggal_mulai, tanggal_selesai) VALUES (?, ?, ?)";
+                $stmt_jadwal = mysqli_prepare($conn, $sql_jadwal);
+                mysqli_stmt_bind_param($stmt_jadwal, "iss", $idLomba, $tanggalMulai, $tanggalSelesai);
+                mysqli_stmt_execute($stmt_jadwal);
+            }
+            
+            // Insert ke tabel syarat
+            if (!empty($syaratUmum) || !empty($syaratKhusus)) {
+                $sql_syarat = "INSERT INTO syarat (id_lomba, syarat_umum, syarat_khusus) VALUES (?, ?, ?)";
+                $stmt_syarat = mysqli_prepare($conn, $sql_syarat);
+                mysqli_stmt_bind_param($stmt_syarat, "iss", $idLomba, $syaratUmum, $syaratKhusus);
+                mysqli_stmt_execute($stmt_syarat);
+            }
+            
+            mysqli_commit($conn);
             header("Location: index.php?message=Lomba berhasil ditambahkan");
             exit();
-        } else {
-            $errors[] = 'Gagal menyimpan data: ' . mysqli_error($conn);
+            
+        } catch (Exception $e) {
+            mysqli_rollback($conn);
+            $errors[] = 'Gagal menyimpan data: ' . $e->getMessage();
         }
     }
 }
@@ -65,183 +138,257 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit'])) {
 include 'includes/header.php';
 ?>
 
-<div class="row justify-content-center">
-    <div class="col-md-10">
-        <div class="card">
-            <div class="card-header">
-                <h4 class="card-title mb-0">
-                    <i class="bi bi-plus-circle"></i> Tambah Lomba Baru
-                </h4>
-            </div>
-            <div class="card-body">
-                <?php if (!empty($errors)): ?>
-                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                        <i class="bi bi-exclamation-triangle"></i>
-                        <strong>Terjadi kesalahan:</strong>
-                        <ul class="mb-0 mt-2">
-                            <?php foreach ($errors as $error): ?>
-                                <li><?php echo htmlspecialchars($error); ?></li>
-                            <?php endforeach; ?>
-                        </ul>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                <?php endif; ?>
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title mb-0">
+                        <i class="bi bi-plus-circle"></i> Tambah Lomba Baru
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <?php if (!empty($errors)): ?>
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <strong>Terjadi kesalahan:</strong>
+                            <ul class="mb-0 mt-2">
+                                <?php foreach ($errors as $error): ?>
+                                    <li><?php echo htmlspecialchars($error); ?></li>
+                                <?php endforeach; ?>
+                            </ul>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    <?php endif; ?>
 
-                <form method="POST" action="create.php">
+                    <form method="POST" action="create.php" enctype="multipart/form-data">
+                        <!-- Informasi Dasar Lomba -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="bi bi-info-circle"></i> Informasi Dasar</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="nama_lomba" class="form-label">
+                                                <i class="bi bi-trophy"></i> Nama Lomba *
+                                            </label>
+                                            <input type="text" 
+                                                   class="form-control" 
+                                                   id="nama_lomba" 
+                                                   name="nama_lomba" 
+                                                   value="<?php echo htmlspecialchars($namaLomba); ?>"
+                                                   placeholder="Masukkan nama lomba"
+                                                   required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="penyelenggara" class="form-label">
+                                                <i class="bi bi-building"></i> Penyelenggara *
+                                            </label>
+                                            <input type="text" 
+                                                   class="form-control" 
+                                                   id="penyelenggara" 
+                                                   name="penyelenggara" 
+                                                   value="<?php echo htmlspecialchars($penyelenggaraLomba); ?>"
+                                                   placeholder="Masukkan nama penyelenggara"
+                                                   required>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label for="id_bidang" class="form-label">
+                                                <i class="bi bi-tags"></i> Bidang Lomba *
+                                            </label>
+                                            <select class="form-select" id="id_bidang" name="id_bidang" required>
+                                                <option value="">-- Pilih Bidang --</option>
+                                                <?php while ($bidang = mysqli_fetch_assoc($bidang_lomba)): ?>
+                                                    <option value="<?php echo $bidang['id_bidang']; ?>" <?php echo (isset($_POST['id_bidang']) && $_POST['id_bidang'] == $bidang['id_bidang']) ? 'selected' : ''; ?>>
+                                                        <?php echo htmlspecialchars($bidang['nama_bidang']); ?>
+                                                    </option>
+                                                <?php endwhile; ?>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label for="id_kategori" class="form-label">
+                                                <i class="bi bi-collection"></i> Kategori *
+                                            </label>
+                                            <select class="form-select" id="id_kategori" name="id_kategori" required>
+                                                <option value="">-- Pilih Kategori --</option>
+                                                <?php while ($kat = mysqli_fetch_assoc($kategori)): ?>
+                                                    <option value="<?php echo $kat['id_kategori']; ?>" <?php echo (isset($_POST['id_kategori']) && $_POST['id_kategori'] == $kat['id_kategori']) ? 'selected' : ''; ?>>
+                                                        <?php echo htmlspecialchars($kat['nama_kategori']); ?>
+                                                    </option>
+                                                <?php endwhile; ?>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label for="id_hadiah" class="form-label">
+                                                <i class="bi bi-gift"></i> Hadiah
+                                            </label>
+                                            <select class="form-select" id="id_hadiah" name="id_hadiah">
+                                                <option value="">-- Pilih Hadiah --</option>
+                                                <?php while ($h = mysqli_fetch_assoc($hadiah)): ?>
+                                                    <option value="<?php echo $h['id_hadiah']; ?>" <?php echo (isset($_POST['id_hadiah']) && $_POST['id_hadiah'] == $h['id_hadiah']) ? 'selected' : ''; ?>>
+                                                        <?php echo htmlspecialchars($h['nama_hadiah']); ?>
+                                                        <?php if ($h['nilai_hadiah']): ?>
+                                                            (Rp <?php echo number_format($h['nilai_hadiah'], 0, ',', '.'); ?>)
+                                                        <?php endif; ?>
+                                                    </option>
+                                                <?php endwhile; ?>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <div class="mb-3">
+                                            <label for="deskripsi" class="form-label">
+                                                <i class="bi bi-file-text"></i> Deskripsi
+                                            </label>
+                                            <textarea class="form-control" 
+                                                      id="deskripsi" 
+                                                      name="deskripsi" 
+                                                      rows="3" 
+                                                      placeholder="Masukkan deskripsi lomba"><?php echo htmlspecialchars($deskripsi); ?></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label for="status" class="form-label">
+                                                <i class="bi bi-toggle-on"></i> Status Lomba *
+                                            </label>
+                                            <select class="form-select" id="status" name="status" required>
+                                                <option value="available" <?php echo ($status == 'available') ? 'selected' : ''; ?>>Tersedia</option>
+                                                <option value="unavailable" <?php echo ($status == 'unavailable') ? 'selected' : ''; ?>>Tidak Tersedia</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Jadwal Lomba -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="bi bi-calendar"></i> Jadwal Lomba</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="tanggal_mulai" class="form-label">
+                                                <i class="bi bi-calendar-event"></i> Tanggal Mulai *
+                                            </label>
+                                            <input type="date" 
+                                                   class="form-control" 
+                                                   id="tanggal_mulai" 
+                                                   name="tanggal_mulai" 
+                                                   value="<?php echo htmlspecialchars($tanggalMulai); ?>"
+                                                   required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="tanggal_selesai" class="form-label">
+                                                <i class="bi bi-calendar-check"></i> Tanggal Selesai
+                                            </label>
+                                            <input type="date" 
+                                                   class="form-control" 
+                                                   id="tanggal_selesai" 
+                                                   name="tanggal_selesai" 
+                                                   value="<?php echo htmlspecialchars($tanggalSelesai); ?>">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Syarat Lomba -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="bi bi-list-check"></i> Syarat Lomba</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="syarat_umum" class="form-label">
+                                                <i class="bi bi-check-circle"></i> Syarat Umum
+                                            </label>
+                                            <textarea class="form-control" 
+                                                      id="syarat_umum" 
+                                                      name="syarat_umum" 
+                                                      rows="4" 
+                                                      placeholder="Masukkan syarat umum lomba"><?php echo htmlspecialchars($syaratUmum); ?></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="syarat_khusus" class="form-label">
+                                                <i class="bi bi-check-square"></i> Syarat Khusus
+                                            </label>
+                                            <textarea class="form-control" 
+                                                      id="syarat_khusus" 
+                                                      name="syarat_khusus" 
+                                                      rows="4" 
+                                                      placeholder="Masukkan syarat khusus lomba"><?php echo htmlspecialchars($syaratKhusus); ?></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="index.php" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Kembali
+                            </a>
+                            <button type="submit" name="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> Simpan Data
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Tips Card -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-lightbulb"></i> Tips Pengisian Form
+                    </h6>
+                </div>
+                <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="nama_lomba" class="form-label">
-                                    <i class="bi bi-trophy"></i> Nama Lomba *
-                                </label>
-                                <input type="text" 
-                                       class="form-control" 
-                                       id="nama_lomba" 
-                                       name="nama_lomba" 
-                                       value="<?php echo isset($_POST['nama_lomba']) ? htmlspecialchars($_POST['nama_lomba']) : ''; ?>"
-                                       placeholder="Masukkan nama lomba"
-                                       required>
-                                <div class="form-text">Contoh: Lomba Karya Tulis Ilmiah Nasional 2024</div>
-                            </div>
+                            <ul class="mb-0">
+                                <li>Berikan nama lomba yang jelas dan menarik</li>
+                                <li>Deskripsi sebaiknya detail dan informatif</li>
+                                <li>Tanggal lomba harus di masa depan</li>
+                            </ul>
                         </div>
                         <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="tgl_lomba" class="form-label">
-                                    <i class="bi bi-calendar-event"></i> Tanggal Lomba *
-                                </label>
-                                <input type="date" 
-                                       class="form-control" 
-                                       id="tgl_lomba" 
-                                       name="tgl_lomba" 
-                                       value="<?php echo isset($_POST['tgl_lomba']) ? htmlspecialchars($_POST['tgl_lomba']) : ''; ?>"
-                                       min="<?php echo date('Y-m-d'); ?>"
-                                       required>
-                                <div class="form-text">Pilih tanggal pelaksanaan lomba</div>
-                            </div>
+                            <ul class="mb-0">
+                                <li>Sertakan gambar untuk menarik perhatian</li>
+                                <li>Link pendaftaran harus valid dan aktif</li>
+                                <li>Semua field dengan tanda * wajib diisi</li>
+                            </ul>
                         </div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="deskripsi" class="form-label">
-                            <i class="bi bi-file-text"></i> Deskripsi *
-                        </label>
-                        <textarea class="form-control" 
-                                  id="deskripsi" 
-                                  name="deskripsi" 
-                                  rows="4" 
-                                  placeholder="Masukkan deskripsi lengkap tentang lomba"
-                                  required><?php echo isset($_POST['deskripsi']) ? htmlspecialchars($_POST['deskripsi']) : ''; ?></textarea>
-                        <div class="form-text">Jelaskan tujuan, kategori, dan ketentuan lomba</div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="lokasi" class="form-label">
-                                    <i class="bi bi-geo-alt"></i> Lokasi *
-                                </label>
-                                <input type="text" 
-                                       class="form-control" 
-                                       id="lokasi" 
-                                       name="lokasi" 
-                                       value="<?php echo isset($_POST['lokasi']) ? htmlspecialchars($_POST['lokasi']) : ''; ?>"
-                                       placeholder="Masukkan lokasi lomba"
-                                       required>
-                                <div class="form-text">Contoh: Jakarta, Indonesia atau Online</div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="gambar" class="form-label">
-                                    <i class="bi bi-image"></i> URL Gambar *
-                                </label>
-                                <input type="url" 
-                                       class="form-control" 
-                                       id="gambar" 
-                                       name="gambar" 
-                                       value="<?php echo isset($_POST['gambar']) ? htmlspecialchars($_POST['gambar']) : ''; ?>"
-                                       placeholder="https://example.com/gambar.jpg"
-                                       required>
-                                <div class="form-text">Masukkan URL gambar poster lomba</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="link_daftar" class="form-label">
-                            <i class="bi bi-link-45deg"></i> Link Pendaftaran *
-                        </label>
-                        <textarea class="form-control" 
-                                  id="link_daftar" 
-                                  name="link_daftar" 
-                                  rows="2" 
-                                  placeholder="Masukkan link atau informasi pendaftaran lomba"
-                                  required><?php echo isset($_POST['link_daftar']) ? htmlspecialchars($_POST['link_daftar']) : ''; ?></textarea>
-                        <div class="form-text">Bisa berupa URL website atau informasi cara mendaftar</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="penyelenggara_lomba" class="form-label">
-                            <i class="bi bi-building"></i> Penyelenggara Lomba *
-                        </label>
-                        <textarea class="form-control" 
-                                  id="penyelenggara_lomba" 
-                                  name="penyelenggara_lomba" 
-                                  rows="3" 
-                                  placeholder="Masukkan informasi penyelenggara lomba"
-                                  required><?php echo isset($_POST['penyelenggara_lomba']) ? htmlspecialchars($_POST['penyelenggara_lomba']) : ''; ?></textarea>
-                        <div class="form-text">Nama organisasi/institusi penyelenggara dan kontak</div>
-                    </div>
-                    
-                    <div class="d-flex justify-content-between">
-                        <a href="index.php" class="btn btn-secondary">
-                            <i class="bi bi-arrow-left"></i> Kembali
-                        </a>
-                        <button type="submit" name="submit" class="btn btn-primary">
-                            <i class="bi bi-save"></i> Simpan Lomba
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-        
-        <!-- Preview Card -->
-        <div class="card mt-3" id="previewCard" style="display: none;">
-            <div class="card-header">
-                <h6 class="card-title mb-0">
-                    <i class="bi bi-eye"></i> Preview Gambar
-                </h6>
-            </div>
-            <div class="card-body text-center">
-                <img id="previewImage" 
-                     src="/placeholder.svg" 
-                     alt="Preview" 
-                     class="img-fluid rounded" 
-                     style="max-height: 200px;">
+                </div>
             </div>
         </div>
     </div>
 </div>
-
-<script>
-// Preview gambar saat URL dimasukkan
-document.getElementById('gambar').addEventListener('input', function() {
-    const url = this.value;
-    const previewCard = document.getElementById('previewCard');
-    const previewImage = document.getElementById('previewImage');
-    
-    if (url && url.startsWith('http')) {
-        previewImage.src = url;
-        previewImage.onerror = function() {
-            previewCard.style.display = 'none';
-        };
-        previewImage.onload = function() {
-            previewCard.style.display = 'block';
-        };
-    } else {
-        previewCard.style.display = 'none';
-    }
-});
-</script>
 
 <?php include 'includes/footer.php'; ?>

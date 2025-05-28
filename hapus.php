@@ -10,7 +10,7 @@ if ($id <= 0) {
 }
 
 // Ambil data lomba untuk konfirmasi
-$sql = "SELECT nama_lomba FROM lomba WHERE id_lomba = ?";
+$sql = "SELECT nama_lomba, gambar FROM lomba WHERE id_lomba = ?";
 $stmt = mysqli_prepare($conn, $sql);
 mysqli_stmt_bind_param($stmt, "i", $id);
 mysqli_stmt_execute($stmt);
@@ -20,6 +20,11 @@ $lomba = mysqli_fetch_assoc($result);
 if (!$lomba) {
     header("Location: index.php");
     exit();
+}
+
+// Hapus gambar jika bukan placeholder dan file ada
+if (strpos($lomba['gambar'], 'placeholder.com') === false && file_exists($lomba['gambar'])) {
+    unlink($lomba['gambar']);
 }
 
 // Hapus data

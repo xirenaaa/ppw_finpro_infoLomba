@@ -1,9 +1,7 @@
-</div>
-
-    <!-- Footer -->
-    <footer class="bg-dark text-light text-center py-3 mt-5">
+<!-- Footer -->
+<footer class="bg-dark text-light text-center py-3 mt-5">
         <div class="container">
-            <p class="mb-0">&copy; 2024 Manajemen Lomba. Dibuat dengan <i class="bi bi-heart-fill text-danger"></i> menggunakan PHP & Bootstrap</p>
+            <p class="mb-0">&copy; <?php echo date('Y'); ?> Manajemen Lomba. Dibuat dengan <i class="bi bi-heart-fill text-danger"></i> menggunakan PHP & Bootstrap</p>
         </div>
     </footer>
 
@@ -12,13 +10,6 @@
     
     <!-- Custom JS -->
     <script>
-        // Konfirmasi hapus
-        function confirmDelete(id, nama) {
-            if (confirm(`Apakah Anda yakin ingin menghapus lomba "${nama}"?`)) {
-                window.location.href = `delete.php?id=${id}`;
-            }
-        }
-
         // Auto hide alerts
         setTimeout(function() {
             const alerts = document.querySelectorAll('.alert');
