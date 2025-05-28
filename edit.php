@@ -1,76 +1,150 @@
 <?php
 include 'config.php';
 
-$id = $_GET['id'];
-$data = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM lomba WHERE id = $id"));
+$success_message = '';
+$error_message = '';
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $nama = $_POST['nama_lomba'];
-    $kategori = $_POST['id_kategori'];
-    $jadwal = $_POST['id_jadwal'];
-    $hadiah = $_POST['id_hadiah'];
-
-    $sql = "UPDATE lomba SET nama_lomba='$nama', id_kategori=$kategori, id_jadwal=$jadwal, id_hadiah=$hadiah WHERE id=$id";
-    if (mysqli_query($conn, $sql)) {
-        echo "<script>alert('Data berhasil diubah!'); window.location='index.php';</script>";
-    } else {
-        echo "<script>alert('Gagal mengubah data!');</script>";
-    }
+if (!isset($_GET['id'])) {
+    die("ID tidak ditemukan.");
 }
 
-$kategori = mysqli_query($conn, "SELECT * FROM kategori");
-$jadwal = mysqli_query($conn, "SELECT * FROM jadwal_lomba");
-$hadiah = mysqli_query($conn, "SELECT * FROM hadiah");
+$id = intval($_GET['id']);
+
+// Ambil data lama
+$result = mysqli_query($conn, "SELECT * FROM lomba WHERE id_lomba = $id");
+if (mysqli_num_rows($result) == 0) {
+    die("Data tidak ditemukan.");
+}
+$data = mysqli_fetch_assoc($result);
+
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $nama_lomba = mysqli_real_escape_string($conn, $_POST['nama_lomba']);
+    $deskripsi = mysqli_real_escape_string($conn, $_POST['deskripsi']);
+    $tgl_lomba = mysqli_real_escape_string($conn, $_POST['tgl_lomba']);
+    $lokasi = mysqli_real_escape_string($conn, $_POST['lokasi']);
+    $link_daftar = mysqli_real_escape_string($conn, $_POST['link_daftar']);
+    $penyelenggara = mysqli_real_escape_string($conn, $_POST['penyelenggara_lomba']);
+    $status = mysqli_real_escape_string($conn, $_POST['status']);
+
+    // Upload gambar baru jika diisi
+    $gambar = $data['gambar']; // default gambar lama
+    if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
+        $target_dir = "uploads/";
+        if (!is_dir($target_dir)) {
+            mkdir($target_dir, 0755, true);
+        }
+        $file_name = basename($_FILES["gambar"]["name"]);
+        $target_file = $target_dir . time() . '_' . $file_name;
+        $imageFileType = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
+        $check = getimagesize($_FILES["gambar"]["tmp_name"]);
+        if ($check !== false) {
+            if (move_uploaded_file($_FILES["gambar"]["tmp_name"], $target_file)) {
+                $gambar = $target_file;
+            } else {
+                $error_message = "Gagal meng-upload gambar baru.";
+            }
+        } else {
+            $error_message = "File yang di-upload bukan gambar.";
+        }
+    }
+
+    if (!$error_message) {
+        $sql = "UPDATE lomba SET 
+            nama_lomba = '$nama_lomba',
+            deskripsi = '$deskripsi',
+            tgl_lomba = '$tgl_lomba',
+            lokasi = '$lokasi',
+            link_daftar = '$link_daftar',
+            gambar = '$gambar',
+            penyelenggara_lomba = '$penyelenggara',
+            status = '$status'
+            WHERE id_lomba = $id";
+
+        if (mysqli_query($conn, $sql)) {
+            $success_message = "Data berhasil diperbarui!";
+            $result = mysqli_query($conn, "SELECT * FROM lomba WHERE id_lomba = $id");
+            $data = mysqli_fetch_assoc($result);
+        } else {
+            $error_message = "Gagal memperbarui data: " . mysqli_error($conn);
+        }
+    }
+}
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
+    <meta charset="UTF-8" />
     <title>Edit Lomba</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
 </head>
-<body class="container mt-4">
+<body>
+<div class="container mt-5">
+    <h2>Edit Lomba</h2>
 
-<h2>Edit Data Lomba</h2>
-<form method="POST">
-    <div class="mb-3">
-        <label class="form-label">Nama Lomba:</label>
-        <input type="text" name="nama_lomba" value="<?= $data['nama_lomba'] ?>" class="form-control" required>
-    </div>
+    <?php if ($success_message): ?>
+        <div class="alert alert-success"><?= $success_message ?></div>
+    <?php endif; ?>
 
-    <div class="mb-3">
-        <label class="form-label">Kategori:</label>
-        <select name="id_kategori" class="form-select">
-            <?php while($k = mysqli_fetch_assoc($kategori)) {
-                $selected = $k['id'] == $data['id_kategori'] ? "selected" : "";
-                echo "<option value='{$k['id']}' $selected>{$k['nama_kategori']}</option>";
-            } ?>
-        </select>
-    </div>
+    <?php if ($error_message): ?>
+        <div class="alert alert-danger"><?= $error_message ?></div>
+    <?php endif; ?>
 
-    <div class="mb-3">
-        <label class="form-label">Jadwal:</label>
-        <select name="id_jadwal" class="form-select">
-            <?php while($j = mysqli_fetch_assoc($jadwal)) {
-                $selected = $j['id'] == $data['id_jadwal'] ? "selected" : "";
-                echo "<option value='{$j['id']}' $selected>{$j['tanggal_mulai']} - {$j['tanggal_selesai']}</option>";
-            } ?>
-        </select>
-    </div>
+    <form method="POST" enctype="multipart/form-data">
+        <div class="mb-3">
+            <label for="nama_lomba" class="form-label">Nama Lomba *</label>
+            <input type="text" class="form-control" id="nama_lomba" name="nama_lomba" required
+                   value="<?= htmlspecialchars($data['nama_lomba']) ?>">
+        </div>
 
-    <div class="mb-3">
-        <label class="form-label">Hadiah:</label>
-        <select name="id_hadiah" class="form-select">
-            <?php while($h = mysqli_fetch_assoc($hadiah)) {
-                $selected = $h['id'] == $data['id_hadiah'] ? "selected" : "";
-                echo "<option value='{$h['id']}' $selected>{$h['nama_hadiah']}</option>";
-            } ?>
-        </select>
-    </div>
+        <div class="mb-3">
+            <label for="deskripsi" class="form-label">Deskripsi</label>
+            <textarea class="form-control" id="deskripsi" name="deskripsi" rows="3"><?= htmlspecialchars($data['deskripsi']) ?></textarea>
+        </div>
 
-    <button type="submit" class="btn btn-primary">Update</button>
-    <a href="index.php" class="btn btn-secondary">Batal</a>
-</form>
+        <div class="mb-3">
+            <label for="tgl_lomba" class="form-label">Tanggal Lomba *</label>
+            <input type="date" class="form-control" id="tgl_lomba" name="tgl_lomba" required
+                   value="<?= $data['tgl_lomba'] ?>">
+        </div>
 
+        <div class="mb-3">
+            <label for="lokasi" class="form-label">Lokasi</label>
+            <input type="text" class="form-control" id="lokasi" name="lokasi"
+                   value="<?= htmlspecialchars($data['lokasi']) ?>">
+        </div>
+
+        <div class="mb-3">
+            <label for="link_daftar" class="form-label">Link Daftar</label>
+            <input type="url" class="form-control" id="link_daftar" name="link_daftar"
+                   value="<?= htmlspecialchars($data['link_daftar']) ?>">
+        </div>
+
+        <div class="mb-3">
+            <label for="gambar" class="form-label">Gambar (kosongkan jika tidak diubah)</label><br>
+            <?php if ($data['gambar']): ?>
+                <img src="<?= $data['gambar'] ?>" width="150" class="mb-2"/><br>
+            <?php endif; ?>
+            <input type="file" class="form-control" id="gambar" name="gambar" accept="image/*" />
+        </div>
+
+        <div class="mb-3">
+            <label for="penyelenggara_lomba" class="form-label">Penyelenggara Lomba</label>
+            <input type="text" class="form-control" id="penyelenggara_lomba" name="penyelenggara_lomba"
+                   value="<?= htmlspecialchars($data['penyelenggara_lomba']) ?>">
+        </div>
+
+        <div class="mb-3">
+            <label for="status" class="form-label">Status *</label>
+            <select class="form-select" id="status" name="status" required>
+                <option value="aktif" <?= $data['status'] == 'aktif' ? 'selected' : '' ?>>Aktif</option>
+                <option value="nonaktif" <?= $data['status'] == 'nonaktif' ? 'selected' : '' ?>>Nonaktif</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Perbarui Lomba</button>
+    </form>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
