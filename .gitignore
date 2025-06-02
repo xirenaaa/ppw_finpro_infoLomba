@@ -1,0 +1,35 @@
+# PHP
+*.log
+*.tmp
+*.cache
+
+# Database
+*.sql.backup
+*.db
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies (if any)
+node_modules/
+vendor/
+
+# Build files
+dist/
+build/

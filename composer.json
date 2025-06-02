@@ -1,0 +1,25 @@
+{
+    "name": "lomba-app/php-competition",
+    "description": "PHP Competition Management System",
+    "type": "project",
+    "require": {
+      "php": ">=7.4"
+    },
+    "require-dev": {},
+    "autoload": {
+      "psr-4": {
+        "App\\": "src/"
+      }
+    },
+    "scripts": {
+      "post-install-cmd": ["echo 'PHP application installed successfully'"]
+    },
+    "config": {
+      "optimize-autoloader": true,
+      "preferred-install": "dist",
+      "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+  }
+  

@@ -1,0 +1,23 @@
+{
+    "name": "php-lomba-app",
+    "version": "1.0.0",
+    "description": "PHP Competition Management Application",
+    "main": "index.php",
+    "type": "module",
+    "scripts": {
+      "build": "echo 'PHP application - no build required'",
+      "start": "echo 'PHP application - use web server'",
+      "install": "echo 'No dependencies to install'",
+      "postinstall": "echo 'PHP application ready'"
+    },
+    "keywords": ["php", "bootstrap", "competition", "management"],
+    "author": "Developer",
+    "license": "MIT",
+    "engines": {
+      "node": ">=18.0.0"
+    },
+    "devDependencies": {},
+    "dependencies": {},
+    "private": true
+  }
+  

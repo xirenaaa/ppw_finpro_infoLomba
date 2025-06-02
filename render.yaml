@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: php-lomba-app
+    env: php
+    plan: free
+    buildCommand: echo "No build required for PHP"
+    startCommand: apache2-foreground
+    envVars:
+      - key: APACHE_DOCUMENT_ROOT
+        value: /opt/render/project/src

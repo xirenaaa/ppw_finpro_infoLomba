@@ -239,3 +239,71 @@ COMMIT;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+
+
+-- Tabel untuk user (admin dan user biasa)
+CREATE TABLE IF NOT EXISTS `users` (
+  `id_user` int(11) NOT NULL AUTO_INCREMENT,
+  `username` varchar(50) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `email` varchar(100) NOT NULL,
+  `nama_lengkap` varchar(100) NOT NULL,
+  `role` enum('admin','user') NOT NULL DEFAULT 'user',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id_user`),
+  UNIQUE KEY `username` (`username`),
+  UNIQUE KEY `email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Insert admin default
+INSERT INTO `users` (`username`, `password`, `email`, `nama_lengkap`, `role`) VALUES
+('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@example.com', 'Administrator', 'admin'),
+('user1', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'user1@example.com', 'User Demo', 'user');
+-- Password untuk keduanya adalah: password
+
+-- Tabel untuk kategori peserta
+CREATE TABLE IF NOT EXISTS `kategori_peserta` (
+  `id_kategori_peserta` int(11) NOT NULL AUTO_INCREMENT,
+  `nama_kategori` varchar(50) NOT NULL,
+  `icon` varchar(50) DEFAULT NULL,
+  PRIMARY KEY (`id_kategori_peserta`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Insert data kategori peserta
+INSERT INTO `kategori_peserta` (`nama_kategori`, `icon`) VALUES
+('SD', 'bi-mortarboard'),
+('SMP', 'bi-mortarboard'),
+('SMA', 'bi-mortarboard'),
+('Kuliah', 'bi-mortarboard'),
+('Umum', 'bi-people');
+
+-- Tabel untuk tipe lokasi
+CREATE TABLE IF NOT EXISTS `lokasi_types` (
+  `id_lokasi` int(11) NOT NULL AUTO_INCREMENT,
+  `nama_lokasi` varchar(50) NOT NULL,
+  `icon` varchar(50) DEFAULT NULL,
+  PRIMARY KEY (`id_lokasi`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Insert data tipe lokasi
+INSERT INTO `lokasi_types` (`nama_lokasi`, `icon`) VALUES
+('Online', 'bi-globe'),
+('Offline', 'bi-geo-alt');
+
+-- Update tabel lomba untuk menambahkan kolom yang diperlukan
+ALTER TABLE `lomba` 
+ADD COLUMN IF NOT EXISTS `id_kategori_peserta` int(11) DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS `id_lokasi_type` int(11) DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS `deadline_daftar` date DEFAULT NULL;
+
+-- Tambahkan foreign key constraints
+ALTER TABLE `lomba`
+ADD CONSTRAINT `fk_lomba_kategori_peserta` FOREIGN KEY (`id_kategori_peserta`) REFERENCES `kategori_peserta` (`id_kategori_peserta`) ON DELETE SET NULL,
+ADD CONSTRAINT `fk_lomba_lokasi_type` FOREIGN KEY (`id_lokasi_type`) REFERENCES `lokasi_types` (`id_lokasi`) ON DELETE SET NULL;
+
+-- Rename tabel jadwal lomba (hapus spasi)
+RENAME TABLE `jadwal lomba` TO `jadwal_lomba`;
+
+-- Update kolom di jadwal_lomba
+ALTER TABLE `jadwal_lomba` 
+CHANGE COLUMN `tanggal kegiatan` `tanggal_kegiatan` date NOT NULL;

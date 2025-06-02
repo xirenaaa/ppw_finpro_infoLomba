@@ -1,0 +1,33 @@
+# Platform.sh configuration
+name: php-lomba-app
+type: php:8.1
+
+web:
+    locations:
+        "/":
+            root: ""
+            passthru: "/index.php"
+            index:
+                - index.php
+            allow: false
+            rules:
+                '\.(css|js|gif|jpe?g|png|svg|ico|woff2?)$':
+                    allow: true
+                '^/uploads/':
+                    allow: true
+
+disk: 1024
+
+mounts:
+    "uploads":
+        source: local
+        source_path: uploads
+
+relationships:
+    database: "mysql:mysql"
+
+hooks:
+    build: |
+        echo "No build step required for PHP application"
+    deploy: |
+        echo "PHP application deployed successfully"

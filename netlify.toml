@@ -1,0 +1,12 @@
+[build]
+  command = "echo 'PHP application - no build step required'"
+  publish = "."
+
+[[redirects]]
+  from = "/*"
+  to = "/index.php"
+  status = 200
+  conditions = {Role = ["admin"]}
+
+[build.environment]
+  PHP_VERSION = "8.1"
